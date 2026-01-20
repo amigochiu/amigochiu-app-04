@@ -185,8 +185,9 @@ async function testApiKey() {
             throw new Error("API Key 有效，但找不到任何可用模型 (API Error?)");
         }
 
-        console.log("Available Models:", data.models.map(m => m.name));
-        alert(`✅ API Key 驗證成功！\n可用模型數: ${data.models.length}`);
+        const modelNames = data.models.map(m => m.name.replace('models/', '')).join('\n');
+        console.log("Available Models:", modelNames);
+        alert(`✅ API Key 驗證成功！\n可用模型 (${data.models.length}):\n${modelNames.substring(0, 500)}... (截斷)`);
 
         // Auto save if success
         saveApiKey();
