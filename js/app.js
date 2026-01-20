@@ -536,14 +536,30 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
                     { inlineData: { mimeType: "image/png", data: base64Image } }
                 ]
             }],
-            generationConfig: { responseModalities: ['IMAGE'] }
+            generationConfig: { responseModalities: ['IMAGE'] },
+            safetySettings: [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+            ]
         })
     });
 
-    const result = await response.json();
+    let result;
+    try {
+        result = await response.json();
+    } catch (e) {
+        throw new Error(`API 回傳非 JSON 格式 (Status: ${response.status})`);
+    }
+
     const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
-    if (!outputBase64) throw new Error("No image data returned from API");
+    if (!outputBase64) {
+        console.error("API Response Failure:", result);
+        const reason = result.candidates?.[0]?.finishReason || result.promptFeedback?.blockReason || "Unknown";
+        throw new Error(`API 回傳無圖片資料。原因: ${reason} (安全性阻擋或其他錯誤)`);
+    }
 
     return {
         imageUrl: `data:image/png;base64,${outputBase64}`,
