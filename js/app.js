@@ -31,6 +31,7 @@ const D = {
     apiKeyModal: document.getElementById('api-key-modal'),
     apiKeyInput: document.getElementById('api-key-input'),
     saveApiKeyBtn: document.getElementById('save-api-key-btn'),
+    testApiKeyBtn: document.getElementById('test-api-key-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     apiKeyAlert: document.getElementById('api-key-alert'),
     alertSettingsBtn: document.getElementById('alert-settings-btn'),
@@ -77,6 +78,7 @@ function init() {
 function setupEventListeners() {
     // API Key
     D.saveApiKeyBtn.addEventListener('click', saveApiKey);
+    D.testApiKeyBtn.addEventListener('click', testApiKey);
     D.settingsBtn.addEventListener('click', () => showApiKeyModal(true));
     D.alertSettingsBtn.addEventListener('click', () => showApiKeyModal(true));
     D.apiKeyModal.addEventListener('click', (e) => {
@@ -152,6 +154,49 @@ function saveApiKey() {
         localStorage.setItem('gemini_api_key', key);
         showApiKeyModal(false);
         renderApiKeyStatus();
+    }
+}
+
+async function testApiKey() {
+    const key = D.apiKeyInput.value.trim();
+    if (!key) {
+        alert("請先輸入 API Key");
+        return;
+    }
+
+    const btn = D.testApiKeyBtn;
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "驗證中...";
+    btn.classList.add("opacity-75", "cursor-not-allowed");
+
+    try {
+        // Use gemini-1.5-flash for a quick connectivity test
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Hello" }] }]
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            const errorMsg = data.error?.message || data.error?.status || "未知錯誤";
+            throw new Error(`${errorMsg}`);
+        }
+
+        alert("✅ API Key 驗證成功！可以使用。");
+        // Auto save if success
+        saveApiKey();
+
+    } catch (e) {
+        alert(`❌ 驗證失敗: ${e.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = originalText;
+        btn.classList.remove("opacity-75", "cursor-not-allowed");
     }
 }
 
