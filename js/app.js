@@ -553,6 +553,11 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
         throw new Error(`API 回傳非 JSON 格式 (Status: ${response.status})`);
     }
 
+    if (!response.ok) {
+        const errorMsg = result.error?.message || result.error?.status || "未知 API 錯誤";
+        throw new Error(`API 請求失敗 (${response.status}): ${errorMsg}`);
+    }
+
     const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
     if (!outputBase64) {
