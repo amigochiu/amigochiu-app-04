@@ -185,9 +185,8 @@ async function testApiKey() {
             throw new Error("API Key 有效，但找不到任何可用模型 (API Error?)");
         }
 
-        const modelNames = data.models.map(m => m.name.replace('models/', '')).join('\n');
-        console.log("Available Models:", modelNames);
-        alert(`✅ API Key 驗證成功！\n可用模型 (${data.models.length}):\n${modelNames.substring(0, 500)}... (截斷)`);
+        console.log("Available Models:", data.models.map(m => m.name));
+        alert(`✅ API Key 驗證成功！\n可用模型數: ${data.models.length}`);
 
         // Auto save if success
         saveApiKey();
@@ -577,46 +576,60 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
         Format: Die-cut sticker with a white border around the character. High quality, sharp lines.
     `;
 
-    // 3. 呼叫 Gemini 2.0 Flash Exp Image Generation (v1beta)
-    // 使用清單中發現的專用模型
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${STATE.apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            contents: [{
-                parts: [
-                    { text: fullPrompt }
-                ]
-            }],
-            generationConfig: { responseModalities: ['IMAGE'] },
-            safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-            ]
-        })
-    });
+    // 3. 多模型自動切換 (Auto-Failover Strategy)
+    const endpoints = [
+        // Strategy A: Gemini 2.0 Flash Exp (v1alpha) - 最標準的非穩定的圖片生成路徑
+        { url: `https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.0 (v1alpha)" },
+        // Strategy B: Gemini 2.5 Flash (v1beta) - 嘗試新模型
+        { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.5 (v1beta)" }
+    ];
 
-    let result;
-    try {
-        result = await response.json();
-    } catch (e) {
-        throw new Error(`API 回傳非 JSON 格式 (Status: ${response.status})`);
+    let lastError = null;
+    let outputBase64 = null;
+
+    for (const endpoint of endpoints) {
+        console.log(`Trying image generation with: ${endpoint.name}`);
+        try {
+            const response = await fetch(endpoint.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: fullPrompt }] }],
+                    generationConfig: { responseModalities: ['IMAGE'] }
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                const errorMsg = result.error?.message || result.error?.status || JSON.stringify(result);
+                // 如果是 404 (Model not found) 或 400 (Not supported)，我們就試下一個
+                console.warn(`${endpoint.name} failed: ${errorMsg}`);
+                lastError = new Error(`[${endpoint.name}] ${errorMsg}`);
+                continue; // Try next endpoint
+            }
+
+            // 嘗試解析圖片
+            outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+            if (outputBase64) {
+                console.log(`Success with ${endpoint.name}`);
+                break; // Success!
+            } else {
+                console.warn(`${endpoint.name} returned structure but no image.`);
+                lastError = new Error(`[${endpoint.name}] API 回傳無圖片資料`);
+            }
+
+        } catch (e) {
+            console.warn(`${endpoint.name} exception:`, e);
+            lastError = e;
+        }
     }
 
-    if (!response.ok) {
-        const errorMsg = result.error?.message || result.error?.status || JSON.stringify(result);
-        throw new Error(`API 請求失敗 (${response.status}): ${errorMsg}`);
-    }
-
-    // Gemini 2.0 的回傳格式
-    const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-
+    // 如果全部失敗
     if (!outputBase64) {
-        console.error("API Response Failure:", result);
-        const reason = result.candidates?.[0]?.finishReason || "Unknown";
-        throw new Error(`API 回傳無圖片資料。原因: ${reason}`);
+        console.error("All generation strategies failed.");
+        throw lastError || new Error("所有可用模型皆無法生成圖片 (不支援或暫時不可用)");
     }
 
     const fileNameSuffix = `solid-${color.replace('#', '')}`;
