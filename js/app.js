@@ -578,13 +578,15 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
 
     // 3. 多模型自動切換 (Auto-Failover Strategy)
     const endpoints = [
-        // Strategy A: Gemini 2.0 Flash Exp (v1alpha) - 最標準的非穩定的圖片生成路徑
-        { url: `https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.0 (v1alpha)" },
-        // Strategy B: Gemini 2.5 Flash (v1beta) - 嘗試新模型
-        { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.5 (v1beta)" }
+        // Strategy 0: Explicit Image Generation Model (v1beta) - 用戶清單中明確存在的模型
+        { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.0 Image Gen (v1beta)" },
+        // Strategy A: Gemini 2.0 Flash Exp (v1alpha) - 開發者通道嘗試
+        { url: `https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.0 Exp (v1alpha)" },
+        // Strategy B: Gemini 2.0 Flash Exp (v1beta) - 標準通道嘗試
+        { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, name: "Gemini 2.0 Exp (v1beta)" }
     ];
 
-    let lastError = null;
+    let errors = [];
     let outputBase64 = null;
 
     for (const endpoint of endpoints) {
@@ -595,7 +597,13 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }],
-                    generationConfig: { responseModalities: ['IMAGE'] }
+                    generationConfig: { responseModalities: ['IMAGE'] },
+                    safetySettings: [
+                        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+                    ]
                 })
             });
 
@@ -603,9 +611,8 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
 
             if (!response.ok) {
                 const errorMsg = result.error?.message || result.error?.status || JSON.stringify(result);
-                // 如果是 404 (Model not found) 或 400 (Not supported)，我們就試下一個
                 console.warn(`${endpoint.name} failed: ${errorMsg}`);
-                lastError = new Error(`[${endpoint.name}] ${errorMsg}`);
+                errors.push(`[${endpoint.name}] ${errorMsg}`);
                 continue; // Try next endpoint
             }
 
@@ -616,20 +623,21 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
                 console.log(`Success with ${endpoint.name}`);
                 break; // Success!
             } else {
-                console.warn(`${endpoint.name} returned structure but no image.`);
-                lastError = new Error(`[${endpoint.name}] API 回傳無圖片資料`);
+                const reason = result.candidates?.[0]?.finishReason || "Unknown";
+                console.warn(`${endpoint.name} returned structure but no image. Reason: ${reason}`);
+                errors.push(`[${endpoint.name}] 無圖片資料 (${reason})`);
             }
 
         } catch (e) {
             console.warn(`${endpoint.name} exception:`, e);
-            lastError = e;
+            errors.push(`[${endpoint.name}] Exception: ${e.message}`);
         }
     }
 
     // 如果全部失敗
     if (!outputBase64) {
         console.error("All generation strategies failed.");
-        throw lastError || new Error("所有可用模型皆無法生成圖片 (不支援或暫時不可用)");
+        throw new Error(`所有模型皆失敗:\n${errors.join('\n')}`);
     }
 
     const fileNameSuffix = `solid-${color.replace('#', '')}`;
