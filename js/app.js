@@ -481,68 +481,63 @@ async function translateExpression(text) {
 }
 
 async function generateExpressionImage(base64Image, expressionEn, activeStyles, ageConfig, solidColor) {
+    // 1. 先用 Gemini 1.5 Flash 描述圖片 (因為 Imagen 不支援直接上傳圖片參考)
+    let charDescription = "A character";
+    try {
+        const descResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${STATE.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: "Describe the visual appearance of this character in detail (hair style/color, eyes, skin tone, gender, outfit, accessories). Keep it concise but descriptive for image generation." },
+                        { inlineData: { mimeType: "image/png", data: base64Image } }
+                    ]
+                }]
+            })
+        });
+        const descData = await descResponse.json();
+        charDescription = descData.candidates?.[0]?.content?.parts?.[0]?.text || "A character";
+        console.log("Character Description:", charDescription);
+    } catch (e) {
+        console.warn("Description failed, using fallback.", e);
+    }
+
+    // 2. 建構 Imagen 的文字提示詞
     const isCute = activeStyles.includes('cute_anime');
     const hasText = activeStyles.includes('handwritten_text');
     const color = solidColor || DEFAULT_SOLID_COLOR;
 
-    // Prompts (Copied from React version)
-    const backgroundPrompt = `Background: Vibrant pure solid background color (HEX: ${color}). The background must be a solid, single color with NO gradients, NO noise, NO halos, and NO shadows. It must be perfectly flat.`;
-    const outputFormat = "clean PNG with solid background, 320x320 square,";
-    const fileNameSuffix = `solid-${color.replace('#', '')}`;
+    const stylePrompt = isCute
+        ? "Art Style: Cute Anime / Chibi style. The character should look adorable and animated."
+        : "Art Style: High quality 2D illustration.";
 
     let agePrompt = "";
-    if (ageConfig.type === 'elderly') agePrompt = "Transform the character into an elderly version. Add wrinkles, age spots, and gray/white hair textures suitable for an elderly person.";
-    else if (ageConfig.type === 'kid') agePrompt = "Transform the character into an elementary school child version. Make features younger, rounder face, larger eyes.";
-    else if (ageConfig.type === 'custom') agePrompt = `Transform the character to look like a ${ageConfig.value}-year-old person.`;
+    if (ageConfig.type === 'elderly') agePrompt = "Make the character look elderly (old age).";
+    else if (ageConfig.type === 'kid') agePrompt = "Make the character look like a young child.";
+    else if (ageConfig.type === 'custom') agePrompt = `Make the character look ${ageConfig.value} years old.`;
 
-    const styleConstraint = isCute
-        ? "STRICTLY apply a cute anime/chibi art style. Enhance the image to be explicitly CUTE and ANIMATED."
-        : "Maintain the original art style.";
+    const textPrompt = hasText
+        ? "Include expressive English text bubbles suitable for the emotion."
+        : "Do not include text.";
 
-    const identityConstraint = ageConfig.type === 'original'
-        ? "Do not change character identity, hairstyle, outfit, accessories, art style. ENSURE EXACT SAME ART STYLE AS INPUT."
-        : "Keep hairstyle (style), outfit, accessories, lighting identical. Modify facial features to match target age.";
-
-    const textConstraint = hasText
-        ? "Include expressive, fun, and dynamically styled text in English next to the character that vividly represents the emotion."
-        : "No text overlays.";
-
-    const stickerStyleConstraint = "Sticker Style: The character must be rendered as a high-quality die-cut sticker. This means adding a bold, consistent WHITE OUTLINE (border) around the entire character silhouette.";
-
-    const promptTemplate = `
-      You are an image variation model.
-      ${styleConstraint}
-      ${identityConstraint}
-      ${textConstraint}
-      ${stickerStyleConstraint}
-      
-      Task: Create a variation.
-      1. Expression: ${expressionEn}
-      2. ${backgroundPrompt}
-      3. Format: Die-cut sticker with white border.
-      ${ageConfig.type !== 'original' ? `4. Age Transformation: ${agePrompt}` : ''}
-      ${isCute ? '5. Style: Cute Anime / Chibi.' : ''}
-      
-      Output: ${outputFormat} ${hasText ? 'with text' : 'no text'}, no watermark.
+    const fullPrompt = `
+        Generate a sticker of a character with this description: ${charDescription}.
+        Expression: ${expressionEn}.
+        ${agePrompt}
+        ${stylePrompt}
+        ${textPrompt}
+        Background: Solid plain background color ${color}.
+        Format: Die-cut sticker with a white border around the character. High quality, sharp lines.
     `;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, {
+    // 3. 呼叫 Imagen 3
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${STATE.apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            contents: [{
-                parts: [
-                    { text: promptTemplate },
-                    { inlineData: { mimeType: "image/png", data: base64Image } }
-                ]
-            }],
-            generationConfig: { responseModalities: ['IMAGE'] },
-            safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-            ]
+            instances: [{ prompt: fullPrompt }],
+            parameters: { sampleCount: 1, aspectRatio: "1:1" }
         })
     });
 
@@ -554,18 +549,19 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
     }
 
     if (!response.ok) {
-        const errorMsg = result.error?.message || result.error?.status || "未知 API 錯誤";
+        const errorMsg = result.error?.message || result.error?.status || JSON.stringify(result);
         throw new Error(`API 請求失敗 (${response.status}): ${errorMsg}`);
     }
 
-    const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    // Imagen 的回傳格式不同 (predictions[0].bytesBase64Encoded)
+    const outputBase64 = result.predictions?.[0]?.bytesBase64Encoded;
 
     if (!outputBase64) {
         console.error("API Response Failure:", result);
-        const reason = result.candidates?.[0]?.finishReason || result.promptFeedback?.blockReason || "Unknown";
-        throw new Error(`API 回傳無圖片資料。原因: ${reason} (安全性阻擋或其他錯誤)`);
+        throw new Error(`API 回傳無圖片資料 (Imagen)`);
     }
 
+    const fileNameSuffix = `solid-${color.replace('#', '')}`;
     return {
         imageUrl: `data:image/png;base64,${outputBase64}`,
         fileNameSuffix: fileNameSuffix
