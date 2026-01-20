@@ -531,13 +531,24 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
         Format: Die-cut sticker with a white border around the character. High quality, sharp lines.
     `;
 
-    // 3. 呼叫 Imagen 3
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${STATE.apiKey}`, {
+    // 3. 呼叫 Gemini 2.0 Flash Exp (v1alpha)
+    // 實驗性功能通常需要 v1alpha 端點
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            instances: [{ prompt: fullPrompt }],
-            parameters: { sampleCount: 1, aspectRatio: "1:1" }
+            contents: [{
+                parts: [
+                    { text: fullPrompt }
+                ]
+            }],
+            generationConfig: { responseModalities: ['IMAGE'] },
+            safetySettings: [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+            ]
         })
     });
 
@@ -553,12 +564,13 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
         throw new Error(`API 請求失敗 (${response.status}): ${errorMsg}`);
     }
 
-    // Imagen 的回傳格式不同 (predictions[0].bytesBase64Encoded)
-    const outputBase64 = result.predictions?.[0]?.bytesBase64Encoded;
+    // Gemini 2.0 的回傳格式
+    const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
     if (!outputBase64) {
         console.error("API Response Failure:", result);
-        throw new Error(`API 回傳無圖片資料 (Imagen)`);
+        const reason = result.candidates?.[0]?.finishReason || "Unknown";
+        throw new Error(`API 回傳無圖片資料。原因: ${reason}`);
     }
 
     const fileNameSuffix = `solid-${color.replace('#', '')}`;
