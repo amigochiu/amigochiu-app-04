@@ -171,15 +171,8 @@ async function testApiKey() {
     btn.classList.add("opacity-75", "cursor-not-allowed");
 
     try {
-        // Use gemini-1.5-flash for a quick connectivity test
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: "Hello" }] }]
-            })
-        });
-
+        // Change to ListModels for generic key validation
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -187,7 +180,14 @@ async function testApiKey() {
             throw new Error(`${errorMsg}`);
         }
 
-        alert("✅ API Key 驗證成功！可以使用。");
+        // Check if we have models
+        if (!data.models || data.models.length === 0) {
+            throw new Error("API Key 有效，但找不到任何可用模型 (API Error?)");
+        }
+
+        console.log("Available Models:", data.models.map(m => m.name));
+        alert(`✅ API Key 驗證成功！\n可用模型數: ${data.models.length}`);
+
         // Auto save if success
         saveApiKey();
 
