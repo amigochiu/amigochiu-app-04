@@ -597,7 +597,7 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: fullPrompt }] }],
-                    generationConfig: { responseModalities: ['IMAGE'] },
+                    // generationConfig: { responseModalities: ['IMAGE'] }, // 暫時移除，避免 400 錯誤
                     safetySettings: [
                         { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
                         { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
