@@ -34,21 +34,21 @@ const D = {
     settingsBtn: document.getElementById('settings-btn'),
     apiKeyAlert: document.getElementById('api-key-alert'),
     alertSettingsBtn: document.getElementById('alert-settings-btn'),
-    
+
     uploadArea: document.getElementById('upload-area'),
     fileInput: document.getElementById('file-input'),
     previewArea: document.getElementById('preview-area'),
     sourcePreview: document.getElementById('source-preview'),
     removeImageBtn: document.getElementById('remove-image-btn'),
-    
+
     expressionsGrid: document.getElementById('expressions-grid'),
     customExpressionInput: document.getElementById('custom-expression-input'),
     addExpressionBtn: document.getElementById('add-expression-btn'),
-    
+
     styleOptions: document.querySelectorAll('.style-option'),
     ageOptions: document.querySelectorAll('.age-option'),
     customAgeInput: document.getElementById('custom-age-input'),
-    
+
     generateBtn: document.getElementById('generate-btn'),
     generateBtnText: document.getElementById('generate-btn-text'),
     stopBtn: document.getElementById('stop-btn'),
@@ -59,7 +59,7 @@ const D = {
     progressCurrent: document.getElementById('progress-current'),
     progressTotal: document.getElementById('progress-total'),
     progressText: document.getElementById('progress-text'),
-    
+
     downloadZipBtn: document.getElementById('download-zip-btn'),
     removeBgBtn: document.getElementById('remove-bg-btn'),
     downloadTransparentZipBtn: document.getElementById('download-transparent-zip-btn')
@@ -87,7 +87,7 @@ function setupEventListeners() {
     D.uploadArea.addEventListener('click', () => D.fileInput.click());
     D.fileInput.addEventListener('change', handleFileUpload);
     D.removeImageBtn.addEventListener('click', removeSourceImage);
-    
+
     // Drag & Drop
     D.uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -218,11 +218,11 @@ const processImageTo320 = (file) => {
                 const y = (TARGET_SIZE - img.height * scale) / 2;
 
                 ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-                
+
                 const dataUrl = canvas.toDataURL('image/png');
                 resolve({
                     fullDataUrl: dataUrl,
-                    base64Clean: dataUrl.split(',')[1] 
+                    base64Clean: dataUrl.split(',')[1]
                 });
             };
             img.src = e.target.result;
@@ -239,18 +239,18 @@ function renderExpressions() {
         const div = document.createElement('div');
         div.className = `expression-item relative flex items-center justify-between p-3 rounded-lg border cursor-pointer select-none transition-all ${ex.selected ? 'border-line bg-line-light text-green-800 shadow-md' : 'border-transparent bg-gray-50 text-gray-500 hover:bg-green-50'}`;
         div.onclick = () => toggleExpression(ex.id);
-        
+
         div.innerHTML = `
             <span class="font-medium">${ex.label_zh}</span>
             <div class="flex items-center gap-1">
                 ${ex.selected ? '<i data-lucide="check" size="16" class="text-line-dark"></i>' : ''}
-                ${!['happy','angry','sad','surprise','love','confuse','scared','tired'].includes(ex.id) ? 
-                    `<button class="delete-expr-btn text-gray-400 hover:text-red-500 p-1 rounded-full z-10" data-id="${ex.id}"><i data-lucide="x" size="14"></i></button>` : ''}
+                ${!['happy', 'angry', 'sad', 'surprise', 'love', 'confuse', 'scared', 'tired'].includes(ex.id) ?
+                `<button class="delete-expr-btn text-gray-400 hover:text-red-500 p-1 rounded-full z-10" data-id="${ex.id}"><i data-lucide="x" size="14"></i></button>` : ''}
             </div>
         `;
         D.expressionsGrid.appendChild(div);
     });
-    
+
     // Bind delete buttons
     document.querySelectorAll('.delete-expr-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -258,7 +258,7 @@ function renderExpressions() {
             removeCustomExpression(btn.dataset.id);
         });
     });
-    
+
     lucide.createIcons();
 }
 
@@ -273,7 +273,7 @@ function toggleExpression(id) {
 function addCustomExpression() {
     const val = D.customExpressionInput.value.trim();
     if (!val) return;
-    
+
     STATE.expressions.push({
         id: `custom_${Date.now()}`,
         label_zh: val,
@@ -331,7 +331,7 @@ function updateAgeUI() {
         const id = opt.dataset.id;
         const radio = opt.querySelector('.radio');
         const inner = radio.querySelector('div');
-        
+
         if (STATE.ageOption === id) {
             opt.classList.add('border-line', 'bg-line-light', 'text-green-800', 'shadow-md');
             radio.classList.add('border-line');
@@ -367,49 +367,49 @@ async function startGeneration() {
     STATE.abortController = new AbortController();
     const signal = STATE.abortController.signal;
     updateUIState();
-    
+
     // Setup results placeholders
     const nameCounts = {};
     STATE.results = selectedExprs.map(ex => {
-         const rawBaseName = `${STATE.sourceImage.originalName}__${ex.label_zh}`;
-         let uniqueBaseName = rawBaseName;
-         if (nameCounts[rawBaseName] !== undefined) {
-             nameCounts[rawBaseName]++;
-             uniqueBaseName = `${rawBaseName}_${nameCounts[rawBaseName]}`;
-         } else {
-             nameCounts[rawBaseName] = 0;
-         }
-         
-         return {
-             id: ex.id,
-             label_zh: ex.label_zh,
-             label_en: ex.label_en,
-             baseUniqueName: uniqueBaseName,
-             status: 'pending',
-             fileName: `${uniqueBaseName}.png`,
-             transparentFileName: `${uniqueBaseName}_transparent.png`,
-             imageUrl: null,
-             transparentUrl: null
-         };
+        const rawBaseName = `${STATE.sourceImage.originalName}__${ex.label_zh}`;
+        let uniqueBaseName = rawBaseName;
+        if (nameCounts[rawBaseName] !== undefined) {
+            nameCounts[rawBaseName]++;
+            uniqueBaseName = `${rawBaseName}_${nameCounts[rawBaseName]}`;
+        } else {
+            nameCounts[rawBaseName] = 0;
+        }
+
+        return {
+            id: ex.id,
+            label_zh: ex.label_zh,
+            label_en: ex.label_en,
+            baseUniqueName: uniqueBaseName,
+            status: 'pending',
+            fileName: `${uniqueBaseName}.png`,
+            transparentFileName: `${uniqueBaseName}_transparent.png`,
+            imageUrl: null,
+            transparentUrl: null
+        };
     });
     renderResultsGrid();
     D.resultsSection.classList.remove('hidden');
     D.progressContainer.classList.remove('hidden');
-    
+
     // Start Loop
     const total = STATE.results.length;
     D.progressTotal.innerText = total;
-    
+
     for (let i = 0; i < total; i++) {
         if (signal.aborted) break;
-        
+
         const item = STATE.results[i];
-        
+
         // Update Status: Loading
         STATE.results[i].status = 'loading';
         renderResultItem(i);
         updateProgress(i, total, `正在生成: ${item.label_zh}`);
-        
+
         try {
             // Translate if needed
             let promptEn = item.label_en;
@@ -425,19 +425,20 @@ async function startGeneration() {
                 { type: STATE.ageOption, value: STATE.customAge },
                 STATE.solidColor
             );
-            
+
             STATE.results[i].imageUrl = imageUrl;
             STATE.results[i].status = 'success';
             STATE.results[i].fileName = `${item.baseUniqueName}__${fileNameSuffix}.png`;
-            
+
         } catch (e) {
             console.error(e);
+            alert(`生成失敗: ${e.message} \n(請檢查 API Key 是否正確，或模型是否目前不可用)`);
             STATE.results[i].status = 'error';
         }
-        
+
         renderResultItem(i);
     }
-    
+
     STATE.isGenerating = false;
     updateUIState();
     updateProgress(total, total, "生成完成");
@@ -482,7 +483,7 @@ async function translateExpression(text) {
 async function generateExpressionImage(base64Image, expressionEn, activeStyles, ageConfig, solidColor) {
     const isCute = activeStyles.includes('cute_anime');
     const hasText = activeStyles.includes('handwritten_text');
-    const color = solidColor || DEFAULT_SOLID_COLOR; 
+    const color = solidColor || DEFAULT_SOLID_COLOR;
 
     // Prompts (Copied from React version)
     const backgroundPrompt = `Background: Vibrant pure solid background color (HEX: ${color}). The background must be a solid, single color with NO gradients, NO noise, NO halos, and NO shadows. It must be perfectly flat.`;
@@ -494,10 +495,10 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
     else if (ageConfig.type === 'kid') agePrompt = "Transform the character into an elementary school child version. Make features younger, rounder face, larger eyes.";
     else if (ageConfig.type === 'custom') agePrompt = `Transform the character to look like a ${ageConfig.value}-year-old person.`;
 
-    const styleConstraint = isCute 
-        ? "STRICTLY apply a cute anime/chibi art style. Enhance the image to be explicitly CUTE and ANIMATED." 
+    const styleConstraint = isCute
+        ? "STRICTLY apply a cute anime/chibi art style. Enhance the image to be explicitly CUTE and ANIMATED."
         : "Maintain the original art style.";
-    
+
     const identityConstraint = ageConfig.type === 'original'
         ? "Do not change character identity, hairstyle, outfit, accessories, art style. ENSURE EXACT SAME ART STYLE AS INPUT."
         : "Keep hairstyle (style), outfit, accessories, lighting identical. Modify facial features to match target age.";
@@ -522,7 +523,7 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
       ${ageConfig.type !== 'original' ? `4. Age Transformation: ${agePrompt}` : ''}
       ${isCute ? '5. Style: Cute Anime / Chibi.' : ''}
       
-      Output: ${outputFormat} ${hasText?'with text':'no text'}, no watermark.
+      Output: ${outputFormat} ${hasText ? 'with text' : 'no text'}, no watermark.
     `;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${STATE.apiKey}`, {
@@ -538,12 +539,12 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
             generationConfig: { responseModalities: ['IMAGE'] }
         })
     });
-    
+
     const result = await response.json();
     const outputBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    
+
     if (!outputBase64) throw new Error("No image data returned from API");
-    
+
     return {
         imageUrl: `data:image/png;base64,${outputBase64}`,
         fileNameSuffix: fileNameSuffix
@@ -567,9 +568,9 @@ function renderResultItem(idx) {
     const item = STATE.results[idx];
     const el = document.getElementById(`result-item-${idx}`);
     if (!el) return;
-    
+
     let content = '';
-    
+
     if (item.status === 'pending') {
         content = `<div class="flex-1 flex items-center justify-center text-gray-400"><i data-lucide="clock" size="24"></i></div>`;
     } else if (item.status === 'loading') {
@@ -594,7 +595,7 @@ function renderResultItem(idx) {
             </div>
         `;
     }
-    
+
     el.innerHTML = content;
     lucide.createIcons();
 }
@@ -605,7 +606,7 @@ window.retryItem = async (idx) => {
     const item = STATE.results[idx];
     STATE.results[idx].status = 'loading';
     renderResultItem(idx);
-    
+
     try {
         let promptEn = item.label_en || await translateExpression(item.label_zh);
         const { imageUrl, fileNameSuffix } = await generateExpressionImage(
@@ -617,7 +618,7 @@ window.retryItem = async (idx) => {
         );
         STATE.results[idx].imageUrl = imageUrl;
         STATE.results[idx].status = 'success';
-    } catch(e) {
+    } catch (e) {
         STATE.results[idx].status = 'error';
     }
     renderResultItem(idx);
@@ -627,7 +628,7 @@ window.downloadSingle = (idx) => {
     const item = STATE.results[idx];
     const url = item.transparentUrl || item.imageUrl;
     const name = item.transparentUrl ? item.transparentFileName : item.fileName;
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = name;
@@ -638,18 +639,18 @@ window.downloadSingle = (idx) => {
 
 // Flood Fill Remove Background
 async function handleBatchRemoveBackground() {
-    const successItems = STATE.results.map((r, i) => ({r, i})).filter(x => x.r.status === 'success' && x.r.imageUrl);
+    const successItems = STATE.results.map((r, i) => ({ r, i })).filter(x => x.r.status === 'success' && x.r.imageUrl);
     if (successItems.length === 0) return;
-    
+
     updateProgress(0, successItems.length, "正在去背...");
     D.progressContainer.classList.remove('hidden');
 
-    await Promise.all(successItems.map(async ({r, i}) => {
+    await Promise.all(successItems.map(async ({ r, i }) => {
         try {
             const transUrl = await removeSolidBackground(r.imageUrl);
             STATE.results[i].transparentUrl = transUrl;
             renderResultItem(i);
-        } catch(e) {
+        } catch (e) {
             console.error(e);
         }
     }));
@@ -659,68 +660,68 @@ async function handleBatchRemoveBackground() {
 }
 
 const removeSolidBackground = (base64Image, tolerance = 20) => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      const width = canvas.width;
-      const height = canvas.height;
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
 
-      const bgR = data[0];
-      const bgG = data[1];
-      const bgB = data[2];
+            const bgR = data[0];
+            const bgG = data[1];
+            const bgB = data[2];
 
-      const isMatch = (r, g, b) => {
-        return Math.abs(r - bgR) <= tolerance &&
-               Math.abs(g - bgG) <= tolerance &&
-               Math.abs(b - bgB) <= tolerance;
-      };
+            const isMatch = (r, g, b) => {
+                return Math.abs(r - bgR) <= tolerance &&
+                    Math.abs(g - bgG) <= tolerance &&
+                    Math.abs(b - bgB) <= tolerance;
+            };
 
-      const visited = new Uint8Array(width * height);
-      const stack = [];
-      const corners = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]];
-      
-      corners.forEach(([x, y]) => {
-        const idx = (y * width + x) * 4;
-        if (isMatch(data[idx], data[idx + 1], data[idx + 2])) {
-           stack.push([x, y]);
-           visited[y * width + x] = 1;
-        }
-      });
+            const visited = new Uint8Array(width * height);
+            const stack = [];
+            const corners = [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]];
 
-      while (stack.length > 0) {
-        const [x, y] = stack.pop();
-        const idx = (y * width + x) * 4;
-        data[idx + 3] = 0; 
+            corners.forEach(([x, y]) => {
+                const idx = (y * width + x) * 4;
+                if (isMatch(data[idx], data[idx + 1], data[idx + 2])) {
+                    stack.push([x, y]);
+                    visited[y * width + x] = 1;
+                }
+            });
 
-        const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+            while (stack.length > 0) {
+                const [x, y] = stack.pop();
+                const idx = (y * width + x) * 4;
+                data[idx + 3] = 0;
 
-        for (const [nx, ny] of neighbors) {
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            const nIdx = (ny * width + nx) * 4;
-            if (!visited[ny * width + nx] && data[nIdx + 3] !== 0) {
-               if (isMatch(data[nIdx], data[nIdx + 1], data[nIdx + 2])) {
-                 visited[ny * width + nx] = 1;
-                 stack.push([nx, ny]);
-               }
+                const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+
+                for (const [nx, ny] of neighbors) {
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const nIdx = (ny * width + nx) * 4;
+                        if (!visited[ny * width + nx] && data[nIdx + 3] !== 0) {
+                            if (isMatch(data[nIdx], data[nIdx + 1], data[nIdx + 2])) {
+                                visited[ny * width + nx] = 1;
+                                stack.push([nx, ny]);
+                            }
+                        }
+                    }
+                }
             }
-          }
-        }
-      }
 
-      ctx.putImageData(imageData, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = reject;
-    img.src = base64Image;
-  });
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = base64Image;
+    });
 };
 
 
@@ -730,11 +731,11 @@ async function downloadAllZip(useTransparent) {
     const validResults = STATE.results.filter(r => r.status === 'success' && (useTransparent ? r.transparentUrl : r.imageUrl));
     if (validResults.length === 0) return;
 
-    if (!window.JSZip) { 
+    if (!window.JSZip) {
         alert("JSZip 尚未載入");
-        return; 
+        return;
     }
-    
+
     const zip = new JSZip();
     validResults.forEach(r => {
         const url = useTransparent ? r.transparentUrl : r.imageUrl;
@@ -780,7 +781,7 @@ function updateUIState() {
     // Update Results Actions
     const hasSuccess = STATE.results.some(r => r.status === 'success');
     const hasTransparent = STATE.results.some(r => !!r.transparentUrl);
-    
+
     if (hasSuccess) {
         D.downloadZipBtn.classList.remove('hidden');
         D.removeBgBtn.classList.remove('hidden');
@@ -788,7 +789,7 @@ function updateUIState() {
         D.downloadZipBtn.classList.add('hidden');
         D.removeBgBtn.classList.add('hidden');
     }
-    
+
     if (hasTransparent) {
         D.downloadTransparentZipBtn.classList.remove('hidden');
     } else {
