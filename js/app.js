@@ -527,10 +527,10 @@ async function translateExpression(text) {
 }
 
 async function generateExpressionImage(base64Image, expressionEn, activeStyles, ageConfig, solidColor) {
-    // 1. 先用 Gemini 1.5 Flash 描述圖片 (因為 Imagen 不支援直接上傳圖片參考)
+    // 1. 先用 Gemini 2.0 Flash Exp 描述圖片 (確認在清單中)
     let charDescription = "A character";
     try {
-        const descResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${STATE.apiKey}`, {
+        const descResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -577,9 +577,9 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
         Format: Die-cut sticker with a white border around the character. High quality, sharp lines.
     `;
 
-    // 3. 呼叫 Gemini 2.0 Flash Exp (v1alpha)
-    // 實驗性功能通常需要 v1alpha 端點
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp:generateContent?key=${STATE.apiKey}`, {
+    // 3. 呼叫 Gemini 2.0 Flash Exp Image Generation (v1beta)
+    // 使用清單中發現的專用模型
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${STATE.apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
