@@ -637,7 +637,14 @@ async function generateExpressionImage(base64Image, expressionEn, activeStyles, 
     // 如果全部失敗
     if (!outputBase64) {
         console.error("All generation strategies failed.");
-        throw new Error(`所有模型皆失敗:\n${errors.join('\n')}`);
+
+        // Check for Quota Exceeded and provide friendly message
+        const allErrors = errors.join('\n');
+        if (allErrors.includes('Quota exceeded') || allErrors.includes('429')) {
+            throw new Error(`⚠️ Google AI 系統忙碌中 (配額額滿)\n建議處置：請等待約 1 分鐘後再重試。\n(錯誤代碼: Resource Exhausted / Quota Exceeded)`);
+        }
+
+        throw new Error(`所有模型嘗試皆失敗 (請檢查網路或 API Key 權限):\n${allErrors}`);
     }
 
     const fileNameSuffix = `solid-${color.replace('#', '')}`;
